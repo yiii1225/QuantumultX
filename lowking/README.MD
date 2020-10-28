@@ -1,7 +1,24 @@
 [![LICENSE](https://img.shields.io/badge/license-Anti%20996-blue.svg)](https://github.com/996icu/996.ICU/blob/master/LICENSE)
 [![LICENSE](https://img.shields.io/badge/感谢-Orz3的图标-red.svg)](https://github.com/Orz-3)
+[![LICENSE](https://img.shields.io/badge/感谢-58xinian的图标-red.svg)](https://github.com/58xinian)
 # Scripts
 ### 日志
+
+#### 2020-10-08
+> ##### 新增
+> - 哔哩哔哩追番监控添加追剧监控
+
+#### 2020-10-08
+> ##### 新增
+> - 上传ToolKit压缩工具脚本，便于一键压缩替换.js中的代码
+
+#### 2020-09-12
+> ##### 更新
+> - ToolKit支持quanx和surge通知跳转url以及多媒体文件（surge暂无）
+
+#### 2020-09-01
+> ##### 新增
+> - 新增QQ萌宠签到获取成长值
 
 #### 2020-08-28
 > ##### 新增

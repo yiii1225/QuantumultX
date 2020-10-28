@@ -22,6 +22,7 @@
 function ToolKit(scriptName, scriptId, options) {
     return new (class {
         constructor(scriptName, scriptId, options) {
+            this.tgEscapeCharMapping = {'&':'＆'}
             this.userAgent = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.0.2 Safari/605.1.15`
             this.prefix = `lk`
             this.name = scriptName
@@ -300,7 +301,7 @@ function ToolKit(scriptName, scriptId, options) {
             }
         }
 
-        msg(subtitle, message) {
+        msg(subtitle, message, openUrl, mediaUrl) {
             if (!this.isRequest() && this.isNotifyOnlyFail && this.execStatus) {
                 //开启了当且仅当执行失败的时候通知，并且执行成功了，这时候不通知
             } else {
@@ -314,14 +315,32 @@ function ToolKit(scriptName, scriptId, options) {
                 if (!this.isEmpty(message)) {
                     if (this.isEnableTgNotify) {
                         this.log(`${this.name}Tg通知开始`)
+                        //处理特殊字符
+                        for (let key in this.tgEscapeCharMapping) {
+                            if (!this.tgEscapeCharMapping.hasOwnProperty(key)) {
+                                continue
+                            }
+                            message = message.replace(key, this.tgEscapeCharMapping[key])
+                        }
                         this.get({
                             url: encodeURI(`${this.tgNotifyUrl}📌${this.name}\n${message}`)
                         }, (error, statusCode, body) => {
                             this.log(`Tg通知完毕`)
                         })
                     } else {
-                        if (this.isQuanX()) $notify(this.name, subtitle, message)
-                        if (this.isSurge()) $notification.post(this.name, subtitle, message)
+                        let options = {}
+                        const hasOpenUrl = !this.isEmpty(openUrl)
+                        const hasMediaUrl = !this.isEmpty(mediaUrl)
+
+                        if (this.isQuanX()) {
+                            if(hasOpenUrl) options["open-url"] = openUrl
+                            if(hasMediaUrl) options["media-url"] = mediaUrl
+                            $notify(this.name, subtitle, message, options)
+                        }
+                        if (this.isSurge()) {
+                            if(hasOpenUrl) options["url"] = openUrl
+                            $notification.post(this.name, subtitle, message, options)
+                        }
                         if (this.isNode()) this.log("⭐️" + this.name + subtitle + message)
                         if (this.isJSBox()) $push.schedule({
                             title: this.name,

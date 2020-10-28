@@ -1,205 +1,144 @@
 /*
-斗鱼鱼吧签到-lowking-v1.0
-原脚本地址：https://raw.githubusercontent.com/demo2099/jscool/master/Task/yubaSign.js
-由于原脚本不支持surge，所以我重写了一份
+QQ萌宠-lowking-v1.0
 
-按下面配置完之后，打开https://yuba.douyu.com/homepage/hotwbs并登陆，打开获取cookie，刷新页面，提示获取鱼吧关注列表成功🎉
+本想另外写一个一条龙服务的脚本，奈何token有效期半天都没有，只能放弃了
+按下面配置完之后，手机qq进入左侧会员，再点击右侧qq宠物(如果没弹出获取成功通知，点击右上角3个点，重启小程序)
 
 ************************
 Surge 4.2.0+ 脚本配置:
 ************************
 
 [Script]
-# > 斗鱼鱼吧签到
-斗鱼鱼吧获取cookie = type=http-request,pattern=^https://yuba.douyu.com/wbapi/web/group/myFollow,script-path=yubaSign.js
-斗鱼鱼吧签到 = type=cron,cronexp="0 0 0,1 * * ?",wake-system=1,script-path=yubaSign.js
+# > QQ萌宠
+QQ萌宠cookie = requires-body=1,type=http-response,pattern=https:\/\/qqpet.jwetech.com\/api\/authorizations,script-path=lkQQPet.js
+QQ萌宠 = type=cron,cronexp="0 0 0,1 * * ?",wake-system=1,script-path=lkQQPet.js
 
 [mitm]
-hostname = yuba.douyu.com
+hostname = qqpet.jwetech.com
 
 ************************
 QuantumultX 本地脚本配置:
 ************************
 
 [rewrite_local]
-#斗鱼鱼吧获取cookie
-^https://yuba.douyu.com/wbapi/web/group/myFollow? url script-request-header yubaSign.js
+#QQ萌宠获取cookie
+https:\/\/qqpet.jwetech.com\/api\/authorizations url script-response-body lkQQPet.js
 
 [task_local]
-0 0 0,1 * * ? yubaSign.js
+0 0 0,1 * * ? lkQQPet.js
 
 [mitm]
-hostname = yuba.douyu.com
+hostname = qqpet.jwetech.com
 
 ************************
 LOON 本地脚本配置:
 ************************
 
 [Script]
-http-request ^https://yuba.douyu.com/wbapi/web/group/myFollow script-path=yubaSign.js, timeout=10, tag=斗鱼鱼吧获取cookie
-cron "0 0 0,1 * * *" script-path=yubaSign.js, tag=斗鱼鱼吧签到
+http-response https:\/\/qqpet.jwetech.com\/api\/authorizations script-path=lkQQPet.js, timeout=10, requires-body=true, tag=QQ萌宠cookie
+cron "0 0 0,1 * * *" script-path=lkQQPet.js, tag=QQ萌宠
 
-mitm = yuba.douyu.com
+mitm = qqpet.jwetech.com
 */
-const lk = new ToolKit(`斗鱼鱼吧签到`, `DouyuYubaSign`)
-const config = {
-    cookieName: "CookieDY",
-    groupName: "GroupDY",
-    needUrl: {
-        // 登录后获取cookie
-        cookieUrl: "https://yuba.douyu.com/wbapi/web/group/myFollow",
-        // 关注鱼吧列表
-        followRoomUrl: `https://yuba.douyu.com/wbapi/web/group/myFollow?page=1&limit=100&timestamp=${Math.random()}`,
-        // 签到
-        signUrl: `https://yuba.douyu.com/ybapi/topic/sign?timestamp=${Math.random()}`
-    },
-    headers: {
-        "User-Agent":
-            "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.120 Safari/537.36",
-        referer: "https://yuba.https://yuba.douyu.com/homepage/group.com",
-        origin: "https://yuba.douyu.com"
-    },
-    expectData: {
-        status_code: 200,
-        message: ""
-    }
-}
+const lk = new ToolKit(`QQ萌宠`, `QQPet`)
+const qqPetTokenKey = `lkQQPetToken`
+const qqPetIdKey = `lkQQPetId`
+const qqPetToken = lk.getVal(qqPetTokenKey)
+const qqPetCurUserTag = !lk.getVal('lkQQPetCurUserTag') ? '' : lk.getVal('lkQQPetCurUserTag')
 
-if (!lk.isExecComm) {
-    if (lk.isRequest() && lk.isGetCookie(/\/wbapi\/web\/group\/myFollow/)) {
-        lk.log(`开始获取cookie`)
-        const {needUrl, cookieName} = config
-        lk.setVal(cookieName, $request.headers["Cookie"])
-        getFollowYuBa()
+if(!lk.isExecComm) {
+    if (lk.isRequest()) {
+        getCookie()
+        lk.msg(``)
+        lk.done();
     } else {
-        all()
+        lk.boxJsJsonBuilder();
+        all();
     }
 }
 
-var pcount = 0
-var arcount = 0
-var errorcount = 0
+function getCookie() {
+    if (lk.isGetCookie(/\/api\/authorizations/)) {
+        const response = lk.getResponseBody()
+        lk.log(`qq宠物授权响应：${response}`)
+        let obj
+        try {
+            obj = JSON.parse(response)
+        } catch (e) {
+            lk.logErr(e)
+            lk.appendNotifyInfo(`❌解析授权响应失败！请稍后再试`)
+        }
+        lk.log(`${obj.id}获取到token：${obj.token}`)
+        lk.appendNotifyInfo(`🎉成功获取token`)
+        lk.setVal(qqPetTokenKey, `Bearer ${obj.token}`)
+        lk.setVal(qqPetIdKey, obj.id)
+    }
+}
+
 async function all() {
-    lk.boxJsJsonBuilder()
-    await sign()
-    lk.prependNotifyInfo(`🎉【${pcount}】个，🔁【${arcount}】个，❌【${errorcount}】个`)
+    if (lk.isEmpty(qqPetToken)) {
+        lk.execFail()
+        lk.appendNotifyInfo(`⚠未获取到token，请重新获取️`)
+    } else {
+        await dailySign()
+    }
     lk.msg(``)
     lk.done()
 }
 
-function getCsrf(str) {
-    const regex = /acf_yb_t=(.*?);/gm
-    const csrf = regex.exec(str)
-    return csrf.length > 1 ? csrf[1] : ""
-}
-
-function sign() {
-    return new Promise(async (resolve, reject) => {
-        await lk.sleep(2000)
-        const {
-            headers,
-            groupName,
-            cookieName,
-            needUrl,
-            expectData
-        } = config
-        const cookie = lk.getVal(cookieName)
-        headers["Cookie"] = cookie
-        headers["x-csrf-token"] = getCsrf(cookie)
-        headers["Content-Type"] = "application/x-www-form-urlencoded"
-        const groupList = JSON.parse(lk.getVal(groupName))["groupList"]
-        const params = {
-            url: needUrl.signUrl,
-            method: "POST",
-            headers
+function dailySign() {
+    return new Promise((resolve, reject) => {
+        let options = {
+            url: 'https://qqpet.jwetech.com/api/v2/daily_signs',
+            headers: {
+                'Host': 'qqpet.jwetech.com',
+                'Accept': '*/*',
+                'Authorization': qqPetToken,
+                'x-game-version': '6.8.81411',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Accept-Language': 'zh-cn',
+                'Content-Type': 'application/json',
+                'Content-Length': '33',
+                'Referer': 'https://appservice.qq.com/1108057289/6.8.7/page-frame.html',
+                'User-Agent': 'QQ/8.4.5.626 CFNetwork/1191.2 Darwin/20.0.0',
+                'Connection': 'keep-alive'
+            },
+            body : JSON.stringify({"ad":false,"day":1,"__src":2014})
         }
-        for (const groupItem of groupList) {
-            const group_id = groupItem["group_id"]
-            params["headers"]["referer"] = "https://yuba.douyu.com/group/" + group_id
-            params["body"] = `group_id=${group_id}&cur_exp=10000`
-            await sendRequest(params, groupItem)
-        }
-        resolve()
-    })
-}
-
-function sendRequest(params, groupItem) {
-    return new Promise(async (resolve, reject) => {
-        lk.post(params, (error, response, body) => {
+        lk.post(options, (error, response, body) => {
             try {
-                let content = ""
-                const res = JSON.parse(body)
-                const {status_code, message, data} = res
                 if (response.status == 200) {
-                    if (status_code == "200" && message == "") {
-                        pcount++
-                        content += `🎉【${groupItem["group_name"]}】[Lv${data["level"]}](${data["levelScore"]}/${data["exp"]})[${data["count"]}天]`
-                    } else if (status_code == "1001") {
-                        arcount++
-                        content += `🔁【${groupItem["group_name"]}】, ${message}`
+                    if (body == "{}") {
+                        lk.log(`🔁${qqPetCurUserTag}今天已经签到`)
+                        lk.appendNotifyInfo(`🔁${qqPetCurUserTag}今天已经签到`)
                     } else {
-                        errorcount++
-                        content += `❌【${groupItem["group_name"]}】[签到失败], ${message}`
-                        lk.execFail()
+                        const obj = JSON.parse(body)
+                        if (obj.items != undefined && obj.items.length > 0) {
+                            lk.log(`🎉${qqPetCurUserTag}日常签到成功`)
+                            let itemInfo = []
+                            for (let item of obj.items) {
+                                itemInfo.push(item.name)
+                            }
+                            lk.log(`🎉${qqPetCurUserTag}签到成功，获得如下\n${itemInfo.join("\n")}`)
+                            lk.appendNotifyInfo(`🎉${qqPetCurUserTag}签到成功，获得如下\n${itemInfo.join("\n")}`)
+                        } else {
+                            lk.execFail()
+                            lk.log(`${qqPetCurUserTag}日常签到错误，响应体：${body}`)
+                            lk.appendNotifyInfo(`❌${qqPetCurUserTag}日常签到错误，具体响应内容请查看日志`)
+                        }
                     }
-                    lk.log(content)
-                    lk.appendNotifyInfo(content)
                 } else {
-                    errorcount++
-                    lk.execFail()
-                    lk.log(`❌【${groupItem["group_name"]}】签到失败（网络请求错误）`)
-                    lk.appendNotifyInfo(`❌【${groupItem["group_name"]}】签到失败（网络请求错误）`)
+                    throw `send request fail!`
                 }
             } catch (e) {
-                errorcount++
-                lk.logErr(e)
                 lk.execFail()
-                lk.log(`❌【${groupItem["group_name"]}】签到失败`)
-                lk.appendNotifyInfo(`❌【${groupItem["group_name"]}】签到失败`)
+                lk.log(`❌${qqPetCurUserTag}日常签到异常`)
+                lk.logErr(e)
+                lk.appendNotifyInfo(`❌${qqPetCurUserTag}日常签到异常`)
             } finally {
                 resolve()
             }
         })
-    })
-}
-
-function getFollowYuBa() {
-    const {
-        headers,
-        cookieName,
-        groupName,
-        needUrl,
-        expectData
-    } = config
-    headers["Cookie"] = lk.getVal(cookieName)
-    const options = {
-        url: needUrl.followRoomUrl,
-        method: "GET",
-        headers,
-        body: ""
-    }
-    lk.get(options, (error, response, data) => {
-        data = JSON.parse(data)
-        data = data.data
-        let content = ""
-        let groupList = []
-        for (const yuba of data["list"]) {
-            groupList.push({
-                group_id: yuba.group_id,
-                group_name: yuba.group_name
-            })
-            content += `[${yuba.group_name}](${yuba.group_id})\n`
-        }
-        lk.appendNotifyInfo(`获取鱼吧关注列表成功🎉`)
-        lk.setVal(
-            groupName,
-            JSON.stringify({
-                groupList
-            })
-        )
-
-        lk.msg(``)
-        lk.done()
     })
 }
 
