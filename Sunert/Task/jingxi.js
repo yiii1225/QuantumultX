@@ -1,137 +1,203 @@
 /*
-更新时间: 2020-09-18 22:35 
+更新时间:10-09 20:05
+本脚本为京东旗下京喜app签到脚本
+本脚本使用京东公共Cooike，支持双账号，获取方法请查看NobyDa大佬脚本说明
 
-本脚本仅适用于数码之家每日签到
-获取Cookie方法:
-1.将下方[rewrite_local]和[MITM]地址复制的相应的区域
-下，
-
-2.登陆数码之家电脑版网页，签到一次,即可获取Cookie，获取后请禁用或注释掉❗️ 签过到的需次日获取
-
-3.非专业人士制作，欢迎各位大佬提出宝贵意见和指导
-
-by Macsuny
-~~~~~~~~~~~~~~~~
-Surge 4.0 :
-[Script]
-数码之家 = type=cron,cronexp=35 5 0 * * *,script-path=https://raw.githubusercontent.com/Sunert/Scripts/master/Task/mydigit.js,script-update-interval=0
-
-# 数码之家 Cookie.
-数码之家 = type=http-request,pattern=https:\/\/www\.mydigit\.cn\/plugin\.php\?id=k_misign:sign&operation=qiandao,script-path=https://raw.githubusercontent.com/Sunert/Scripts/master/Task/mydigit.js
-~~~~~~~~~~~~~~~~
-Loon 2.1.0+
-[Script]
-cron "04 00 * * *" script-path=https://raw.githubusercontent.com/Sunert/Scripts/master/Task/mydigit.js, enabled=true, tag=数码之家
-
-http-request https:\/\/www\.mydigit\.cn\/plugin\.php\?id=k_misign:sign&operation=qiandao script-path=https://raw.githubusercontent.com/Sunert/Scripts/master/Task/mydigit.js
------------------
-
-QX 1.0. 7+ :
 [task_local]
-0 9 * * * https://raw.githubusercontent.com/Sunert/Scripts/master/Task/mydigit.js
+0 9 * * * https://raw.githubusercontent.com/Sunert/Scripts/master/Task/jingxi.js
 
-[rewrite_local]
-https:\/\/www\.mydigit\.cn\/plugin\.php\?id=k_misign:sign&operation=qiandao url script-request-header https://raw.githubusercontent.com/Sunert/Scripts/master/Task/mydigit.js
 ~~~~~~~~~~~~~~~~
 [MITM]
-hostname = www.mydigit.cn
+hostname = wq.jd.com
 ~~~~~~~~~~~~~~~~
-
 */
 
+const $ = new Env('京喜');
+let cookiesArr = [], cookie = '', signresult,todaypoint = 0;
+const notify = $.isNode() ? require('./sendNotify') : '';
+const jdCookieNode = $.isNode() ? require('./jdCookie.js') : '';
 
-const $ = new Env("数码之家")
-$.KEY_sign = 'sign_mydigit'
-
-let isGetCookie = typeof $request !== 'undefined'
-
-if (isGetCookie) {
-!(async () => {
-  const session = {}
-  session.url = $request.url
-  session.headers = $request.headers
-  if ($.setdata(JSON.stringify(session), $.KEY_sign)) {
-    $.subt = `获取会话: 成功!`
-  } else {
-    $.subt = `获取会话: 失败!`
-  }
-  $.msg($.name, $.subt)
-})()
-  .catch((e) => $.logErr(e))
-  .finally(() => $.done())
+if ($.isNode()) {
+  Object.keys(jdCookieNode).forEach((item) => {
+    cookiesArr.push(jdCookieNode[item])
+  })
 } else {
- !(async () => {
-  await signin();
-  await Idinfo();
-  await Minfo();
-  await showmsg()
-})()
-  .catch((e) => $.logErr(e))
-  .finally(() => $.done())
+  cookiesArr.push($.getdata('CookieJD'));
+  cookiesArr.push($.getdata('CookieJD2'))
 }
+!(async () => {
+  if (!cookiesArr[0]) {
+    $.msg($.name, '【提示】请先获取京东账号一cookie\n直接使用NobyDa的京东签到获取', 'https://bean.m.jd.com/', {"open-url": "https://bean.m.jd.com/"});
+    return;
+  }
+  for (let i = 0; i < cookiesArr.length; i++) {
+    if (cookiesArr[i]) {
+      cookie = cookiesArr[i];
+      UserName = decodeURIComponent(cookie.match(/pt_pin=(\w+)/) && cookie.match(/pt_pin=(\w+)/)[1])
+      $.index = i + 1;
+      console.log(`\n开始【京东账号${$.index}】${UserName}\n`);
+      await getsign();
+      await Tasklist();
+      await doublesign();
+      await coininfo();
+      await showmsg();
+    if ($.isNode()){
+       await notify.sendNotify($.name + " 账号昵称:" + nickname, $.sub+`\n`+$.desc)
+         }
+    }
+  }
+})()
+    .catch((e) => $.logErr(e))
+    .finally(() => $.done())
 
-function signin() {
+function getsign() {
   return new Promise((resolve) => {
-    const opts = JSON.parse($.getdata($.KEY_sign))
-    $.get(opts,(err, resp, data)=> {
-       //console.log(data);
-      try {
-        $.digit = data
-       signatatus = resp.statusCode
-      } catch (e) {
-        $.logErr(e, resp)
-      } finally {
-        resolve()
+    const signurl = {
+      url: 'https://wq.jd.com/pgcenter/sign/UserSignOpr?g_login_type=1',
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Cookie: cookie,
+        Referer: "https://wqsh.jd.com/pingou/taskcenter/index.html"
+      },
+    }
+    $.get(signurl, (err, resp, data) => {
+      signres = JSON.parse(data)
+      if (signres.retCode == '0') {
+        nickname = signres.data.nickname
+        totalpoints = signres.data.pgAmountTotal
+        signdays = "已签" + signres.data.signDays + "天"
+        if (signres.data.signStatus == 0) {
+          signresult = "签到成功"
+          signdays += " 今日获得" + data.match(/[0-9]+/g)[4] + "积分"
+
+        } else if (signres.data.signStatus == 1) {
+          signresult = "签到重复"
+        }
+      } else if (signres.retCode == '30003') {
+        $.msg($.name, '【提示】京东cookie已失效,请重新登录获取', 'https://bean.m.jd.com/', {"open-url": "https://bean.m.jd.com/"});
       }
+      resolve()
     })
   })
 }
+
+function coininfo() {
+  return new Promise((resolve, reject) => {
+    const coinurl = {
+      url: "https://wq.jd.com/pgcenter/sign/QueryPGDetail?sceneval=2",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Cookie: cookie,
+        Referer: "https://jddx.jd.com/m/jddnew/money/index.html"
+      }
+    }
+    $.get(coinurl, (err, resp, data) => {
+      let coindata = JSON.parse(data),
+          localetime = new Date(new Date().toLocaleDateString()).getTime()/1000,
+          item = coindata.data.list;
+           daytotal = Number();
+        var i = 0;
+        for(i=0;i<item.length && item[i].time>=localetime;i++){
+            if (item[i].activeId === '10000'){
+             todaypoint = item[i].accountValue
+            };
+            if (item[i].activeId ==='30000'){
+             daytotal += item[i].accountValue
+           };
+          }
+       resolve()
+     })
+  })
+}
+
+function Tasklist(taskid) {
+  return new Promise( (resolve) => {
+    const url = {
+      url: 'https://m.jingxi.com/pgcenter/task/QueryPgTaskCfgByType?&taskType=3',
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Cookie: cookie,
+        Referer: "https://st.jingxi.com/pingou/task_center/task/index.html?jxsid="
+      },
+    }
+    $.get(url, async (err, resp, data) => {
+      totaskres = JSON.parse(data)
+      var item = totaskres.data.tasks;
+      let taskArr = [];
+      for (task of item) {
+        taskArr.push(task.taskId);
+        await dotask(task.taskId);
+        await taskFinish(task.taskId);
+       }
+      resolve()
+    })
+  })
+}
+
+function dotask(id) {
+  return new Promise((resolve) => {
+    const url = {
+      url: `https://m.jingxi.com/pgcenter/task/drawUserTask?sceneval=2&taskid=${id}`,
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Cookie: cookie,
+        Referer: "https://st.jingxi.com/pingou/task_center/task/index.html?jxsid="
+      }
+    }
+    $.get(url, (err, resp, data) => {
+      const task = JSON.parse(data)
+     //console.log(task)
+      resolve()
+    })
+  })
+}
+function taskFinish(taskId) {
+  return new Promise((resolve) => {
+    const url = {
+      url: `https://m.jingxi.com/pgcenter/task/UserTaskFinish?sceneval=2&taskid=${taskId}&sceneval=2&g_login_type=1&g_ty=ls`,
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Cookie: cookie,
+        Referer: "https://st.jingxi.com/pingou/task_center/task/index.html?jxsid="
+      }
+    }
+    $.get(url, (err, resp, data) => {
+      const task = JSON.parse(data)
+      //console.log(task)
+      resolve()
+    })
+  })
+}
+function doublesign() {
+  return new Promise((resolve) => {
+    const doubleurl = {
+      url: 'https://m.jingxi.com/double_sign/IssueReward?sceneval=2&g_login_type=1&g_ty=ajax',
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Cookie: cookie,
+        Referer: "https://st.jingxi.com/pingou/jxapp_double_signin/index.html?ptag=139037.2.1"
+      }
+    }
+    $.get(doubleurl, (err, resp, data) => {
+      doub = JSON.parse(data)
+      if (doub.retCode == 0) {
+        doubleres = " 双签成功 🧧+ " + doub.data.jd_amount / 100 + "元";
+        $.log($.name + "" + doubleres)
+      }
+      resolve()
+    })
+  })
+}
+
 function showmsg() {
   return new Promise((resolve) => {
-    if ($.digit.match(/[\u4e00-\u9fa5]+/g)[0]=='今日已签') {$.subt = '签到重复'}
-    else if (signatatus=='200'){$.subt += '签到成功'}
-    else { $.subt = '签到失败'}
-    $.desc = coin+"  "+Mcoin+"  会员等级: "+level+" \n"+signday+' '+totalday
-    $.msg($.name, $.subt+ '  签到等级:'+signlevel, $.desc)
-    resolve()
+ if(signresult){
+    $.sub = "积分总计:" + totalpoints+" " + signresult
+    $.desc = signdays +doubleres+ '\n' + "今日签到得" + todaypoint + "个金币 共计" +  (daytotal+todaypoint)+'个金币'
+    $.msg($.name + " 账号昵称:" + nickname, $.sub, $.desc)
+     }
+   resolve()
   })
-}
-
-function Idinfo() {
-  return new Promise((resolve) => {
-   signheaders = JSON.parse($.getdata($.KEY_sign)).headers
-   userInfo = JSON.parse($.getdata($.KEY_sign)).headers.Referer
-   const url = { 
-       url:'https://www.mydigit.cn/plugin.php?id=k_misign:sign&mobile=2'
-,
-       headers: signheaders,
-}
-      url.headers['User-Agent'] = 'Mozilla/5.0 (iPhone; CPU iPhone OS 13_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.1 Mobile/15E148 Safari/604.1'
-    $.post(url, (err, resp, data) => {
-     //console.log(data);
-     coin = data.match(/积分: [0-9]+/g)[0];
-     level = data.match(/Lv.[0-9]+/g)[0];
-     signlevel = data.match(/Lv.[0-9]+/g)[1];
-     signday = data.match(/连续签到<\/span>[0-9]+/g)[0].replace('</span>',"")+"天";
-     totalday = data.match(/累计签到<\/span>[0-9]+/g)[0].replace('</span>',"")+"天";
-    resolve()
-  })
- })
-}
-
-function Minfo() {
-  return new Promise((resolve) => {
-   cookieval = JSON.parse($.getdata($.KEY_sign)).headers.Cookie
-   const url = { 
-       url: `https://www.mydigit.cn/home.php?mod=spacecp&ac=credit&showcredit=1`,
-       headers: {Cookie: cookieval},
-}
-    $.post(url, (err, resp, data) => {
-       //console.log(data);
-       Mcoin = data.match(/M币: (<\/span>||<\/em>)[-0-9]+/g)[0].replace(/[</spanem>]/g,"");
-    resolve()
-  })
- })
 }
 
 // prettier-ignore
