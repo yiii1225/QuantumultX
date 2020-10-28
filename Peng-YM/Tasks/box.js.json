@@ -143,7 +143,8 @@
         "@caiyun.token.tencent",
         "@caiyun.display_location",
         "@caiyun.location.latitude",
-        "@caiyun.location.longitude"
+        "@caiyun.location.longitude",
+        "@caiyun.address"
       ],
       "settings": [
         {
@@ -194,8 +195,8 @@
       "script": "https://raw.githubusercontent.com/Peng-YM/QuanX/master/Tasks/caiyun.js"
     },
     {
-      "id": "surge-running-mode",
-      "name": "Surge运行模式",
+      "id": "running-mode",
+      "name": "SSID 运行模式",
       "keys": [
         "@surge_running_mode.silence",
         "@surge_running_mode.cellular",
@@ -276,8 +277,8 @@
       ]
     },
     {
-      "id": "surge-auto-policy",
-      "name": "Surge自动策略",
+      "id": "ssid-auto-policy",
+      "name": "SSID 自动策略",
       "keys": [
         "@surge_auto_policy.silence",
         "@surge_auto_policy.cellular",
@@ -412,18 +413,37 @@
       ]
     },
     {
-      "id": "sub-store",
-      "name": "Sub-Store",
-      "keys": [
-        "@sub-store.subs",
-        "@sub-store.collections"
-      ],
+      "id": "next-dns",
+      "name": "NextDNS",
       "author": "@Peng-YM",
       "repo": "https://github.com/Peng-YM/Sub-Store",
-      "settings": [],
+      "keys": [],
+      "settings": [
+        {
+          "id": "@NextDNS.url",
+          "name": "NextDNS绑定URL",
+          "val": "",
+          "type": "text",
+          "desc": "NextDNS配置页面 > 已绑定的IP > 显示高级选项 > 最下面一行链接"
+        },
+        {
+          "id": "@NextDNS.servers",
+          "name": "DNS服务器",
+          "val": "",
+          "type": "text",
+          "desc": "NextDNS配置页面 > 已绑定的IP > DNS服务器，注意需要用英文逗号分隔。"
+        },
+        {
+          "id": "@NextDNS.silence",
+          "name": "静默运行",
+          "val": false,
+          "type": "boolean",
+          "desc": "打开后DNS绑定时不显示通知"
+        }
+      ],
       "icons": [
-        "https://raw.githubusercontent.com/58xinian/icon/master/Sub-Store_mini.png",
-        "https://raw.githubusercontent.com/58xinian/icon/master/Sub-Store.png"
+        "https://raw.githubusercontent.com/58xinian/icon/master/telegram_mini.png",
+        "https://raw.githubusercontent.com/58xinian/icon/master/telegram.png"
       ]
     }
   ]
