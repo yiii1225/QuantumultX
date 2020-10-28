@@ -51,12 +51,12 @@ function API(name = "untitled", debug = false) {
                     if (this.isLoon || this.isSurge)
                         $httpClient.get(options, (err, response, body) => {
                             if (err) reject(err);
-                            else resolve({ status: response.status, headers: response.headers, body });
+                            else resolve({ statusCode: response.status, headers: response.headers, body });
                         });
                     else
                         this.node.request(options, (err, response, body) => {
                             if (err) reject(err);
-                            else resolve({ ...response, status: response.statusCode, body });
+                            else resolve({ ...response, statusCode: response.statusCode, body });
                         });
                 });
             }
@@ -72,12 +72,12 @@ function API(name = "untitled", debug = false) {
                     if (this.isLoon || this.isSurge) {
                         $httpClient.post(options, (err, response, body) => {
                             if (err) reject(err);
-                            else resolve({ status: response.status, headers: response.headers, body });
+                            else resolve({ statusCode: response.status, headers: response.headers, body });
                         });
                     } else {
                         this.node.request.post(options, (err, response, body) => {
                             if (err) reject(err);
-                            else resolve({ ...response, status: response.statusCode, body });
+                            else resolve({ ...response, statusCode: response.statusCode, body });
                         });
                     }
                 });
@@ -147,7 +147,7 @@ function API(name = "untitled", debug = false) {
             this.log(`SET ${key}`);
             if (key.indexOf('#') !== -1) {
                 key = key.substr(1)
-                if (this.isSurge & this.isLoon) {
+                if (this.isSurge || this.isLoon) {
                     $persistentStore.write(data, key);
                 }
                 if (this.isQX) {
@@ -166,7 +166,7 @@ function API(name = "untitled", debug = false) {
             this.log(`READ ${key}`);
             if (key.indexOf('#') !== -1) {
                 key = key.substr(1)
-                if (this.isSurge & this.isLoon) {
+                if (this.isSurge || this.isLoon) {
                     return $persistentStore.read(key);
                 }
                 if (this.isQX) {
@@ -184,7 +184,7 @@ function API(name = "untitled", debug = false) {
             this.log(`DELETE ${key}`);
             if (key.indexOf('#') !== -1) {
                 key = key.substr(1)
-                if (this.isSurge & this.isLoon) {
+                if (this.isSurge || this.isLoon) {
                     $persistentStore.write(null, key);
                 }
                 if (this.isQX) {
@@ -201,21 +201,46 @@ function API(name = "untitled", debug = false) {
 
         // notification
         notify(title = name, subtitle = '', content = '', open_url, media_url) {
-            const content_Surge = content + (open_url == undefined ? "" : `\n\n跳转链接：${open_url}`) + (media_url == undefined ? "" : `\n\n多媒体链接：${media_url}`);
-            const content_Loon = content + (media_url == undefined ? "" : `\n\n多媒体链接：${media_url}`);
-
-            if (this.isQX) $notify(title, subtitle, content, {"open-url": open_url, "media-url": media_url});
-            if (this.isSurge) $notification.post(title, subtitle, content_Surge);
-            if (this.isLoon) $notification.post(title, subtitle, content_Loon, open_url);
+            if (this.isSurge) {
+                let content_Surge = content + (media_url == undefined ? "" : `\n\n多媒体链接：${media_url}`);
+                let opts = {};
+                if (open_url) opts["url"] = open_url;
+                if(JSON.stringify(opts) == "{}") {
+                    $notification.post(title, subtitle, content_Surge);
+                } else {
+                    $notification.post(title, subtitle, content_Surge, opts);
+                }
+            }
+            if (this.isQX) {
+                let opts = {};
+                if (open_url) opts["open-url"] = open_url;
+                if (media_url) opts["media-url"] = media_url;
+                if(JSON.stringify(opts) == "{}") {
+                    $notify(title, subtitle, content);
+                } else {
+                    $notify(title, subtitle, content, opts);
+                }
+            } 
+            if (this.isLoon) {
+                let opts = {};
+                if (open_url) opts["openUrl"] = open_url;
+                if (media_url) opts["mediaUrl"] = media_url;
+                if(JSON.stringify(opts) == "{}") {
+                    $notification.post(title, subtitle, content);
+                } else {
+                    $notification.post(title, subtitle, content, opts);
+                }
+            }
             if (this.isNode) {
+                let content_Node = content + (open_url == undefined ? "" : `\n\n跳转链接：${open_url}`) + (media_url == undefined ? "" : `\n\n多媒体链接：${media_url}`);
                 if (this.isJSBox) {
                     const push = require("push");
                     push.schedule({
                         title: title,
-                        body: subtitle ? subtitle + "\n" + content : content,
+                        body: subtitle ? subtitle + "\n" + content_Node : content_Node,
                     });
                 } else {
-                    console.log(`${title}\n${subtitle}\n${content_Surge}\n\n`);
+                    console.log(`${title}\n${subtitle}\n${content_Node}\n\n`);
                 }
             }
         }
@@ -238,9 +263,7 @@ function API(name = "untitled", debug = false) {
         }
 
         done(value = {}) {
-            if (this.isQX) {
-                this.isRequest ? $done(value) : null;
-            } else if (this.isLoon || this.isSurge) {
+            if (this.isQX || this.isLoon || this.isSurge) {
                 this.isRequest ? $done(value) : $done();
             } else if (this.isNode && !this.isJSBox) {
                 if (typeof $context !== 'undefined') {

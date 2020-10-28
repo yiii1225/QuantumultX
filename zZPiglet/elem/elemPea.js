@@ -1,8 +1,6 @@
 /*
-"欧可林"每日红包得积分，早上十点，此脚本为使用 Oclean_mini.js 者使用。
-0 0 10 * * *
-
-由于欧可林服务器（大概）的问题，脚本几乎肯定会超时无通知，日志为 timeout，但有概率可以抽中，希望抽中且有通知者反馈一下日志中的返回体或日志、通知截图。
+"饿了么" app "我的 - 吃货豆" 遗忘的吃货豆自动领取，支持 Quantumult X（理论上也支持 Surge、Loon，未尝试）。
+默认已使用 elemSign.js，故请先使用 elemGetCookies.js 获取 Cookie。(https://github.com/songyangzz/QuantumultX/blob/master/elem/elemGetCookies.js)
 
 ⚠️免责声明：
 1. 此脚本仅用于学习研究，不保证其合法性、准确性、有效性，请根据情况自行判断，本人对此不承担任何保证责任。
@@ -14,44 +12,73 @@
 7. 所有直接或间接使用、查看此脚本的人均应该仔细阅读此声明。本人保留随时更改或补充此声明的权利。一旦您使用或复制了此脚本，即视为您已接受此免责声明。
 
 Author：zZPiglet
+
+Quantumult X (App Store:1.0.5+, TestFlight 190+):
+[task_local]
+50 23 * * * https://raw.githubusercontent.com/zZPiglet/Task/master/elem/elemPea.js, tag=饿了么-遗忘的吃货豆
+
+Surge 4.0+ & Loon:
+[Script]
+cron "50 23 * * *" script-path=https://raw.githubusercontent.com/zZPiglet/Task/master/elem/elemPea.js
 */
 
-const CheckinURL =
-	"https://mall.oclean.com/API/VshopProcess.ashx?action=GrabEveryDayPoint&redId=1&clientType=5&client=5&openId=";
-const CookieName = "欧可林商城";
+const mainURL = "https://h5.ele.me/restapi";
 const $cmp = compatibility();
-Lottery();
+const token = $cmp.read("cookie_elem");
+Checkin();
 $cmp.done();
 
-function Lottery() {
-	let subTitle = "";
-	let detail = "";
-	const oclean_mini = {
-		url: CheckinURL + $cmp.read("Oclean_mini"),
+function Checkin() {
+	let listURL = mainURL + "/biz.svip_core/v1/foodie/homepage";
+	const list = {
+		url: listURL,
+		headers: {
+			Cookie: token,
+		},
 	};
-	$cmp.get(oclean_mini, function (error, response, data) {
+	$cmp.get(list, function (error, response, data) {
 		if (!error) {
-			const result = JSON.parse(data);
-			if (result.Status == "OK") {
-				subTitle += "抽奖成功！🦷";
-				detail += "获得 " + result.Data.Point + " 积分。";
-				$cmp.log(data);
-			} else if (result.Status == "NO") {
-				subTitle += "抽奖失败";
-				detail += result.Message;
-				$cmp.log(data);
+			let listresult = JSON.parse(data);
+			if (response.statusCode == 200) {
+				if (listresult.foodiePeaBlock.peaList.length) {
+					let total = 0;
+					for (let l of listresult.foodiePeaBlock.peaList) {
+						$cmp.log(l);
+						let pea_id = l.id;
+						let rewardURL =
+							mainURL + "/biz.svip_bonus/v1/users/supervip/pea/draw?peaId=" + pea_id;
+						const reward = {
+							url: rewardURL,
+							headers: {
+								Cookie: token,
+							},
+							body: "{}",
+						};
+						$cmp.post(reward, function (error, response, data) {
+							$cmp.log(data);
+						});
+						total += Number(l.count);
+					}
+					$cmp.notify(
+						"饿了么 - 遗忘的吃货豆",
+						"",
+						"捡回遗忘的 " + total + " 个吃货豆。🧆"
+					);
+				} else {
+					$cmp.notify("饿了么 - 遗忘的吃货豆", "", "今天没有忘记领取的吃货豆～ 🎉");
+				}
 			} else {
-				subTitle += "未知错误，详情请见日志。";
-				detail += result.Message;
-				$cmp.log("Oclean failed response : \n" + JSON.stringify(result));
+				$cmp.notify(
+					"饿了么 - 遗忘的吃货豆",
+					"Cookie 未获取或失效❗",
+					"请按脚本开头注释完成配置并首次或重新获取 Cookie。\n" + listresult.message
+				);
+				$cmp.log("elem_pea failed response : \n" + JSON.stringify(listresult));
 			}
-			$cmp.notify(CookieName, subTitle, detail);
 		} else {
-			//subTitle += '签到接口请求失败，详情请见日志。'
-			//detail += error
-			$cmp.log("Oclean_mini failed response : \n" + error);
+			$cmp.notify("饿了么 - 遗忘的吃货豆", "领取接口请求失败，详情请见日志。", error);
+			$cmp.log("elem_pea failed response : \n" + error);
 		}
-		//$cmp.notify(CookieName, subTitle, detail)
 	});
 }
 

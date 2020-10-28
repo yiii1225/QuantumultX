@@ -1,5 +1,6 @@
 /*
-使用方法参考：https://github.com/zZPiglet/Task/blob/master/Domino/README.md
+"滴滴出行" app "钱包 - 金融服务 - 天天有奖" 自动签到，支持 Quantumult X（理论上也支持 Surge、Loon，未尝试）。
+默认已使用 DiDi.js，故请先使用 DiDi.js 获取 Cookie。(https://raw.githubusercontent.com/zZPiglet/Task/master/DiDi/DiDi.js)
 
 ⚠️免责声明：
 1. 此脚本仅用于学习研究，不保证其合法性、准确性、有效性，请根据情况自行判断，本人对此不承担任何保证责任。
@@ -11,69 +12,47 @@
 7. 所有直接或间接使用、查看此脚本的人均应该仔细阅读此声明。本人保留随时更改或补充此声明的权利。一旦您使用或复制了此脚本，即视为您已接受此免责声明。
 
 Author：zZPiglet
+
+Quantumult X:
+[task_local]
+1 0 * * * https://raw.githubusercontent.com/zZPiglet/Task/master/DiDi/DiDi_finance.js, tag=滴滴金融
+
+Surge & Loon:
+[Script]
+cron "1 0 * * *" script-path=https://raw.githubusercontent.com/zZPiglet/Task/master/DiDi/DiDi_finance.js
 */
 
-const $ = new API("Domino");
-const ERR = MYERR();
+const $ = API("Didi");
 $.debug = [true, "true"].includes($.read("debug")) || false;
-$.openid = $.read("openid");
-$.phonenum = $.read("phonenum");
-$.sec = $.read("sec");
-//$.smscode = $.read("smscode");
-$.score = Number($.read("score") || 180);
-
-const gift =
-	"\n一等奖：免费 9″ 手拍台式香溢烤肠比萨 1 个（共6000个）（需任意消费）" +
-	"\n二等奖：半价 9″ 手拍台式香溢烤肠比萨 1 个（共8000个）（需任意消费）" +
-	"\n三等奖：免费椰香咖喱鸡肉意面一份（需购买任意比萨后使用） （共20000份）" +
-	"\n四等奖：免费酥香嫩鱼块一份（需购买任意比萨后使用） （共50000份）" +
-	"\n五等奖：免费黄金薯角一份（需购买任意比萨后使用）（人人有礼，未获得1-4等奖的参与者均可得）";
-
-const giftname = {
-	1: "一等奖",
-	2: "二等奖",
-	3: "三等奖",
-	4: "四等奖",
-	5: "五等奖",
-};
+const ERR = MYERR();
+$.subTitle = "";
+$.detail = "";
 
 !(async () => {
-	if (!$.phonenum || !$.sec || !$.openid) {
-		throw new ERR.RequestBodyError("❌ 请按 Domino_getGift.js 脚本开头配置获取信息。");
-		//} else if (!$.smscode) {
-		//    throw new ERR.SMSCodeError("❌ 验证码未填写或未保存。");
-	} else {
-		$.detail = "";
-		$.last = false;
-		$.times = 0;
-		while (!$.last && $.times < 3) {
-			$.flag = false;
-			await getRank();
-			if ($.flag) {
-				await getGift();
-				await getGiftCode();
-			} else {
-				throw new ERR.BodyError("❌ 信息错误，请重新按 README.md 获取。");
-			}
-		}
-		await $.notify(
-			"达美乐 - 奖励",
-			"领取成功 🍕",
-			"恭喜获得：" + $.detail + "\n\n奖项详情：" + gift
+	$.token = $.read("#DiDi");
+	if (!$.token) {
+		throw new ERR.TokenError(
+			"❌ 未获取或填写 Token，请先参考以下链接获取 Token \n https://github.com/zZPiglet/Task/tree/master/DiDi "
 		);
+	} else {
+		await getActId();
+		await signIn();
+		while ($.fbroken) {
+			await restart();
+			await signIn();
+		}
+		await $.notify("滴滴金融", $.subTitle, $.detail);
 	}
 })()
 	.catch((err) => {
-		if (err instanceof ERR.RequestBodyError) {
-			$.notify("达美乐 - 奖励", "缺失信息", err.message);
-			//} else if (err instanceof ERR.SMSCodeError) {
-			//    $.notify("达美乐 - 奖励", "无验证码", err.message);
+		if (err instanceof ERR.TokenError) {
+			$.notify("滴滴出行 - Token 错误", "", err.message, "OneTravel://");
 		} else if (err instanceof ERR.BodyError) {
-			$.notify("达美乐 - 奖励", "响应错误", err.message);
+			$.notify("滴滴出行 - 返回错误", "", err.message);
 		} else {
 			$.notify(
-				"达美乐 - 奖励",
-				"出现错误",
+				"滴滴出行 - 出现错误",
+				"",
 				JSON.stringify(err, Object.getOwnPropertyNames(err))
 			);
 			$.error(JSON.stringify(err, Object.getOwnPropertyNames(err)));
@@ -81,28 +60,62 @@ const giftname = {
 	})
 	.finally($.done());
 
-function getRank() {
-	return $.post({
-		url: "http://dominos0915.shjimang.com/Ajax/GetRank",
-		headers: {
-			Cookie:
-				"Web2006=controller=Home&action=Default&OpenId=" + $.openid + "&m=" + $.phonenum,
-		},
-		body: "score=" + $.score + "&sec=" + $.sec,
+function getActId() {
+	return $.get({
+		url:
+			"https://gist.githubusercontent.com/zZPiglet/a9a537190bc6353923191520cf9a2c89/raw/DiDi.json",
 	})
 		.then((resp) => {
-			if (resp.statusCode == 200) {
-				$.log("getRank: " + JSON.stringify(resp.body));
-				let obj = JSON.parse(resp.body);
-				if (obj.Code == "1000") {
-					$.flag = true;
+			$.log("actId: " + JSON.stringify(resp.body));
+			let obj = JSON.parse(resp.body);
+			$.actId = obj.financeActId;
+		})
+		.catch((err) => {
+			throw err;
+		});
+}
+
+function signIn() {
+	return $.post({
+		url:
+			"https://manhattan.webapp.xiaojukeji.com/marvel/api/manhattan-signin-task/signIn/execute",
+		headers: {
+			"Content-Type": "application/json",
+		},
+		body: '{"token":"' + $.token + '","activityId":"' + $.actId + '","clientId":1}',
+	})
+		.then((resp) => {
+			$.fbroken = false;
+			$.log("execute: " + JSON.stringify(resp.body));
+			let obj = JSON.parse(resp.body);
+			if (obj.errorCode == 0) {
+				let serialTimes = obj.data.serialSignInTimes;
+				let period = obj.data.periodDays;
+				$.subTitle += "签到 [" + serialTimes + "/" + period + "] 天";
+				$.detail += "获得如下奖品：";
+				for (let l of obj.data.giftDetail) {
+					$.detail +=
+						"\n" +
+						l.displayJson.displayName +
+						"：" +
+						l.displayValue +
+						" " +
+						l.displayUnit +
+						"，" +
+						l.displayJson.displayDesc +
+						"。";
+				}
+			} else if (obj.errorCode == 500000) {
+				if (obj.errorMsg == "今天已经签到过了") {
+					$.subTitle += "签到重复";
+					$.detail += obj.errorMsg;
+				} else if (obj.errorMsg == "断签") {
+					$.fbroken = true;
 				} else {
-					$.flag = false;
+					throw new ERR.BodyError(obj.errorMsg);
 				}
 			} else {
-				throw new ERR.RequestBodyError(
-					'验证信息已过期，请再次访问公众号"达美乐比萨" - "优惠｜咨询" - "有奖游戏"，无需进行游戏，访问后即可执行脚本。'
-				);
+				throw new ERR.BodyError(JSON.stringify(resp.body));
 			}
 		})
 		.catch((err) => {
@@ -110,64 +123,17 @@ function getRank() {
 		});
 }
 
-function getGift() {
+function restart() {
 	return $.post({
-		url: "http://dominos0915.shjimang.com/Ajax/GetGiftD",
+		url:
+			"https://manhattan.webapp.xiaojukeji.com/marvel/api/manhattan-signin-task/signIn/restart",
 		headers: {
-			Cookie:
-				"Web2006=controller=Home&action=Default&OpenId=" +
-				$.openid +
-				"&m=" +
-				$.phonenum +
-				"&id=",
+			"Content-Type": "application/json",
 		},
-		body: "sec=" + $.sec + "&mobile=" + $.phonenum,
+		body: '{"token":"' + $.token + '","activityId":"' + $.actId + '","clientId":1}',
 	})
 		.then((resp) => {
-			$.log("getGift: " + JSON.stringify(resp.body));
-			let obj = JSON.parse(resp.body);
-			if (obj.Code == "1000") {
-				$.giftcode = obj.Data.Id;
-			} else if (obj.Code == "1001") {
-				throw new ERR.BodyError(obj.Msg + "\n请检查 BoxJs 中验证码是否正确或删除重填。");
-			} else if (obj.Code == "1001.4") {
-				$.last = true;
-				$.detail += "今天领取次数用完啦～";
-				throw new ERR.BodyError("今天领取次数用完啦～");
-			} else {
-				$.error("getGift ERROR: " + JSON.stringify(resp.body));
-				throw new ERR.BodyError(
-					"❌ 获取奖励返回错误，请查看日志并反馈。\n" + JSON.stringify(resp.body)
-				);
-			}
-		})
-		.catch((err) => {
-			throw err;
-		});
-}
-
-function getGiftCode() {
-	return $.post({
-		url: "http://dominos0915.shjimang.com/Ajax/GetGiftCode",
-		headers: {
-			Cookie:
-				"Web2006=controller=Home&action=Default&OpenId=" + $.openid + "&m=" + $.phonenum,
-		},
-		body: "id=" + $.giftcode,
-	})
-		.then((resp) => {
-			$.log("getGiftCode: " + JSON.stringify(resp.body));
-			let obj = JSON.parse(resp.body);
-			if (obj.Code == "1000") {
-				let id = obj.Data.GiftId;
-				$.detail += giftname[id] + " ";
-				$.times += 1;
-			} else {
-				$.error("getGiftCode ERROR: " + JSON.stringify(resp.body));
-				throw new ERR.BodyError(
-					"❌ 激活奖励返回错误，请查看日志并反馈。\n" + JSON.stringify(resp.body)
-				);
-			}
+			$.log("restart: " + JSON.stringify(resp.body));
 		})
 		.catch((err) => {
 			throw err;
@@ -175,20 +141,13 @@ function getGiftCode() {
 }
 
 function MYERR() {
-	class RequestBodyError extends Error {
+	class TokenError extends Error {
 		constructor(message) {
 			super(message);
-			this.name = "RequestBodyError";
+			this.name = "TokenError";
 		}
 	}
-	/*
-    class SMSCodeError extends Error {
-        constructor(message) {
-            super(message);
-            this.name = "SMSCodeError";
-        }
-    };
-    */
+
 	class BodyError extends Error {
 		constructor(message) {
 			super(message);
@@ -197,8 +156,7 @@ function MYERR() {
 	}
 
 	return {
-		RequestBodyError,
-		//    SMSCodeError,
+		TokenError,
 		BodyError,
 	};
 }
