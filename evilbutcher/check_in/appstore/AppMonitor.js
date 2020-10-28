@@ -46,7 +46,7 @@ let apps = [
   "1282297037_au",
   "932747118:ie",
   "1116905928",
-  "1373567447"
+  "1373567447",
 ]; //app跟踪id
 if ($.read("apps") != "" && $.read("apps") != undefined) {
   apps = $.read("apps").split("，");
@@ -59,7 +59,7 @@ let notifys = [];
 format_apps(apps);
 function format_apps(x) {
   let apps_f = {};
-  x.forEach(n => {
+  x.forEach((n) => {
     if (/^[a-zA-Z0-9:/|\-_\s]{1,}$/.test(n)) {
       n = n.replace(/[/|\-_\s]/g, ":");
       let n_n = n.split(":");
@@ -99,20 +99,20 @@ async function post_data(d) {
     }
     let infos = {};
     await Promise.all(
-      Object.keys(d).map(async k => {
+      Object.keys(d).map(async (k) => {
         let config = {
-          url: "https://itunes.apple.com/lookup?id=" + d[k] + "&country=" + k
+          url: "https://itunes.apple.com/lookup?id=" + d[k] + "&country=" + k,
         };
         await $.http
           .get(config)
-          .then(response => {
+          .then((response) => {
             let results = JSON.parse(response.body).results;
             if (Array.isArray(results) && results.length > 0) {
-              results.forEach(x => {
+              results.forEach((x) => {
                 infos[x.trackId] = {
                   n: x.trackName,
                   v: x.version,
-                  p: x.formattedPrice
+                  p: x.formattedPrice,
                 };
                 if (app_monitor.hasOwnProperty(x.trackId)) {
                   if (
@@ -142,7 +142,7 @@ async function post_data(d) {
             }
             return Promise.resolve();
           })
-          .catch(e => {
+          .catch((e) => {
             console.log(e);
           });
       })
@@ -278,24 +278,25 @@ function flag(x) {
     ["VE", "🇻🇪"],
     ["VG", "🇻🇬"],
     ["VI", "🇻🇮"],
-    ["VN", "🇻🇳"]
+    ["VN", "🇻🇳"],
   ]);
   return flags.get(x.toUpperCase());
 }
 
 //From Peng-YM's OpenAPI.js
 function ENV() {
-  const isQX = typeof $task != "undefined";
-  const isLoon = typeof $loon != "undefined";
-  const isSurge = typeof $httpClient != "undefined" && !this.isLoon;
+  const isQX = typeof $task !== "undefined";
+  const isLoon = typeof $loon !== "undefined";
+  const isSurge = typeof $httpClient !== "undefined" && !isLoon;
   const isJSBox = typeof require == "function" && typeof $jsbox != "undefined";
   const isNode = typeof require == "function" && !isJSBox;
   const isRequest = typeof $request !== "undefined";
-  return { isQX, isLoon, isSurge, isNode, isJSBox, isRequest };
+  const isScriptable = typeof importModule !== "undefined";
+  return { isQX, isLoon, isSurge, isNode, isJSBox, isRequest, isScriptable };
 }
 
 function HTTP(baseURL, defaultOptions = {}) {
-  const { isQX, isLoon, isSurge } = ENV();
+  const { isQX, isLoon, isSurge, isScriptable, isNode } = ENV();
   const methods = ["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH"];
 
   function send(method, options) {
@@ -306,10 +307,10 @@ function HTTP(baseURL, defaultOptions = {}) {
     const events = {
       ...{
         onRequest: () => {},
-        onResponse: resp => resp,
-        onTimeout: () => {}
+        onResponse: (resp) => resp,
+        onTimeout: () => {},
       },
-      ...options.events
+      ...options.events,
     };
 
     events.onRequest(method, options);
@@ -317,18 +318,35 @@ function HTTP(baseURL, defaultOptions = {}) {
     let worker;
     if (isQX) {
       worker = $task.fetch({ method, ...options });
-    } else {
+    } else if (isLoon || isSurge || isNode) {
       worker = new Promise((resolve, reject) => {
-        const request = isSurge || isLoon ? $httpClient : require("request");
+        const request = isNode ? require("request") : $httpClient;
         request[method.toLowerCase()](options, (err, response, body) => {
           if (err) reject(err);
           else
             resolve({
               statusCode: response.status || response.statusCode,
               headers: response.headers,
-              body
+              body,
             });
         });
+      });
+    } else if (isScriptable) {
+      const request = new Request(options.url);
+      request.method = method;
+      request.headers = options.headers;
+      request.body = options.body;
+      worker = new Promise((resolve, reject) => {
+        request
+          .loadString()
+          .then((body) => {
+            resolve({
+              statusCode: request.response.statusCode,
+              headers: request.response.headers,
+              body,
+            });
+          })
+          .catch((err) => reject(err));
       });
     }
 
@@ -345,23 +363,24 @@ function HTTP(baseURL, defaultOptions = {}) {
       : null;
 
     return (timer
-      ? Promise.race([timer, worker]).then(res => {
+      ? Promise.race([timer, worker]).then((res) => {
           clearTimeout(timeoutid);
           return res;
         })
       : worker
-    ).then(resp => events.onResponse(resp));
+    ).then((resp) => events.onResponse(resp));
   }
 
   const http = {};
   methods.forEach(
-    method => (http[method.toLowerCase()] = options => send(method, options))
+    (method) =>
+      (http[method.toLowerCase()] = (options) => send(method, options))
   );
   return http;
 }
 
 function API(name = "untitled", debug = false) {
-  const { isQX, isLoon, isSurge, isNode, isJSBox } = ENV();
+  const { isQX, isLoon, isSurge, isNode, isJSBox, isScriptable } = ENV();
   return new (class {
     constructor(name, debug) {
       this.name = name;
@@ -375,7 +394,7 @@ function API(name = "untitled", debug = false) {
           const fs = require("fs");
 
           return {
-            fs
+            fs,
           };
         } else {
           return null;
@@ -410,7 +429,7 @@ function API(name = "untitled", debug = false) {
             fpath,
             JSON.stringify({}),
             { flag: "wx" },
-            err => console.log(err)
+            (err) => console.log(err)
           );
         }
         this.root = {};
@@ -422,7 +441,7 @@ function API(name = "untitled", debug = false) {
             fpath,
             JSON.stringify({}),
             { flag: "wx" },
-            err => console.log(err)
+            (err) => console.log(err)
           );
           this.cache = {};
         } else {
@@ -443,13 +462,13 @@ function API(name = "untitled", debug = false) {
           `${this.name}.json`,
           data,
           { flag: "w" },
-          err => console.log(err)
+          (err) => console.log(err)
         );
         this.node.fs.writeFileSync(
           "root.json",
           JSON.stringify(this.root),
           { flag: "w" },
-          err => console.log(err)
+          (err) => console.log(err)
         );
       }
     }
@@ -515,20 +534,37 @@ function API(name = "untitled", debug = false) {
       const openURL = options["open-url"];
       const mediaURL = options["media-url"];
 
-      const content_ =
-        content +
-        (openURL ? `\n点击跳转: ${openURL}` : "") +
-        (mediaURL ? `\n多媒体: ${mediaURL}` : "");
-
       if (isQX) $notify(title, subtitle, content, options);
-      if (isSurge) $notification.post(title, subtitle, content_);
-      if (isLoon) $notification.post(title, subtitle, content, openURL);
-      if (isNode) {
+      if (isSurge) {
+        $notification.post(
+          title,
+          subtitle,
+          content + `${mediaURL ? "\n多媒体:" + mediaURL : ""}`,
+          {
+            url: openURL,
+          }
+        );
+      }
+      if (isLoon) {
+        let opts = {};
+        if (openURL) opts["openUrl"] = openURL;
+        if (mediaURL) opts["mediaUrl"] = mediaURL;
+        if (JSON.stringify(opts) == "{}") {
+          $notification.post(title, subtitle, content);
+        } else {
+          $notification.post(title, subtitle, content, opts);
+        }
+      }
+      if (isNode || isScriptable) {
+        const content_ =
+          content +
+          (openURL ? `\n点击跳转: ${openURL}` : "") +
+          (mediaURL ? `\n多媒体: ${mediaURL}` : "");
         if (isJSBox) {
           const push = require("push");
           push.schedule({
             title: title,
-            body: (subtitle ? subtitle + "\n" : "") + content_
+            body: (subtitle ? subtitle + "\n" : "") + content_,
           });
         } else {
           console.log(`${title}\n${subtitle}\n${content_}\n\n`);
@@ -550,7 +586,7 @@ function API(name = "untitled", debug = false) {
     }
 
     wait(millisec) {
-      return new Promise(resolve => setTimeout(resolve, millisec));
+      return new Promise((resolve) => setTimeout(resolve, millisec));
     }
 
     done(value = {}) {

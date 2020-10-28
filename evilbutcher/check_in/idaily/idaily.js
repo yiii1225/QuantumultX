@@ -1,3 +1,123 @@
+/*
+【iDaily】@evilbutcher
+
+【仓库地址】https://github.com/evilbutcher/Quantumult_X/tree/master（欢迎star🌟）
+
+【BoxJs】https://raw.githubusercontent.com/evilbutcher/Quantumult_X/master/evilbutcher.boxjs.json
+
+【致谢】
+感谢Peng-YM的OpenAPI.js！
+
+⚠️【免责声明】
+------------------------------------------
+1、此脚本仅用于学习研究，不保证其合法性、准确性、有效性，请根据情况自行判断，本人对此不承担任何保证责任。
+2、由于此脚本仅用于学习研究，您必须在下载后 24 小时内将所有内容从您的计算机或手机或任何存储设备中完全删除，若违反规定引起任何事件本人对此均不负责。
+3、请勿将此脚本用于任何商业或非法目的，若违反规定请自行对此负责。
+4、此脚本涉及应用与本人无关，本人对因此引起的任何隐私泄漏或其他后果不承担任何责任。
+5、本人对任何脚本引发的问题概不负责，包括但不限于由脚本错误引起的任何损失和损害。
+6、如果任何单位或个人认为此脚本可能涉嫌侵犯其权利，应及时通知并提供身份证明，所有权证明，我们将在收到认证文件确认后删除此脚本。
+7、所有直接或间接使用、查看此脚本的人均应该仔细阅读此声明。本人保留随时更改或补充此声明的权利。一旦您使用或复制了此脚本，即视为您已接受此免责声明。
+
+【Surge】
+-----------------
+[Script]
+iDaily每日环球视野 = type=cron,cronexp=5 0 * * *,script-path=https://raw.githubusercontent.com/evilbutcher/Quantumult_X/master/check_in/idaily/idaily.js
+
+【Loon】
+-----------------
+[Script]
+cron "5 0 * * *" script-path=https://raw.githubusercontent.com/evilbutcher/Quantumult_X/master/check_in/idaily/idaily.js, tag=iDaily每日环球视野
+
+【Quantumult X】
+-----------------
+[task_local]
+5 0 * * * https://raw.githubusercontent.com/evilbutcher/Quantumult_X/master/check_in/idaily/idaily.js, tag=iDaily每日环球视野
+
+【Icon】
+透明：https://raw.githubusercontent.com/evilbutcher/Quantumult_X/master/picture/idaily_tran.png
+彩色：https://raw.githubusercontent.com/evilbutcher/Quantumult_X/master/picture/idaily.png
+*/
+
+const $ = new API("iDaily");
+const ERR = MYERR();
+$.time = (new Date().getTime() / 1000).toFixed(0);
+$.random = [true, "true"].includes($.read("random")) || false;
+
+!(async () => {
+  await getcontent();
+  showmsg();
+})()
+  .catch((err) => {
+    if (err instanceof ERR.ParseError) {
+      $.notify("iDaily", "❌ 解析数据出现错误", err.message);
+    } else {
+      $.notify("iDaily", "❌ 出现错误", JSON.stringify(err, Object.getOwnPropertyNames(err)));
+    }
+  })
+  .finally($.done());
+
+function getcontent() {
+  const url = `https://idaily-cdn.idailycdn.com/api/list/v3/iphone/zh-hans?page=1&ver=iphone&app_ver=122&app_timestamp=${$.time}`;
+  const headers = {
+    Connection: `keep-alive`,
+    Host: `idaily-cdn.idailycdn.com`,
+    "Accept-Encoding": `gzip`,
+    "User-Agent": `CLKit 1.0 rv:1 (iPhone; iOS 13.6.1; zh_CN)`,
+    "Content-Type": "text/html; charset=utf-8",
+  };
+  const myRequest = {
+    url: url,
+    headers: headers,
+  };
+  return $.http.get(myRequest).then((response) => {
+    $.log(JSON.parse(response.body));
+    if (response.statusCode == 200) {
+      var obj = JSON.parse(response.body);
+      $.data = obj;
+    } else {
+      $.error(JSON.stringify(response));
+      $.notify("iDaily", "", "❌ 未知错误，请查看日志");
+    }
+  });
+}
+
+function showmsg() {
+  try {
+    if ($.random == true) {
+      var i = Math.round(Math.random() * $.data.length);
+    } else {
+      i = 0;
+    }
+    $.info($.data[i]);
+    var content = $.data[i].content;
+    var location = $.data[i].location;
+    var cover = $.data[i]["cover_landscape_hd"];
+    var link = $.data[i]["link_share"];
+    var title = $.data[i].title;
+    var caption = $.data[i]["ui_sets"]["caption_subtitle"];
+    var detail = `📍 ${location}\n${content}`;
+    $.notify(`📅 ${title}`, `⏩ ${caption}`, detail, {
+      "media-url": cover,
+      "open-url": link,
+    });
+  } catch (err) {
+    throw new ERR.ParseError("请稍候重试");
+  }
+}
+
+function MYERR() {
+  class ParseError extends Error {
+    constructor(message) {
+      super(message);
+      this.name = "ParseError";
+    }
+  }
+  return {
+    ParseError,
+  };
+}
+
+//From Peng-YM's OpenAPI.js
 function ENV() {
   const isQX = typeof $task !== "undefined";
   const isLoon = typeof $loon !== "undefined";
