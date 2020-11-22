@@ -101,7 +101,7 @@
 
 * [@evilbutcher](https://github.com/evilbutcher/Quantumult_X/tree/master)
 
-* [@lxk0301](https://gitee.com/lxk0301/scripts)
+* [@lxk0301](https://github.com/lxk0301/jd_scripts)
 
 * [@toulanboy](https://github.com/toulanboy/scripts)
 
