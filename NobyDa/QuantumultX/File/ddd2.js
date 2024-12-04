@@ -3,7 +3,7 @@
 滴答
 
 [rewrite]
-https://dida365.com/api/v2/user/status url https://raw.githubusercontent.com/yiii1225/QuantumultX/master/NobyDa/QuantumultX/File/ddd2.js
+^https:\/\/(ticktick|dida365)\.com\/api\/v2\/user\/status url script-response-body https://raw.githubusercontent.com/yiii1225/QuantumultX/master/NobyDa/QuantumultX/File/ddd2.js
 
 [mitm] 
 hostname = dida365.com
